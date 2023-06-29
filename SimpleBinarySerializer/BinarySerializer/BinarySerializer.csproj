@@ -47,8 +47,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BigEndianBitConverter.cs" />
     <Compile Include="BinarySerializationException.cs" />
+    <Compile Include="EndianBinaryReader.cs" />
+    <Compile Include="EndianBinaryWriter.cs" />
+    <Compile Include="EndianBitConverter.cs" />
+    <Compile Include="Endianness.cs" />
     <Compile Include="IBinarySerializable.cs" />
+    <Compile Include="LittleEndianBitConverter.cs" />
     <Compile Include="Serializer.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="FieldOrderAttribute.cs" />

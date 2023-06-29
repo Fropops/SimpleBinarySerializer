@@ -4,12 +4,13 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MiscUtil.IO;
 
 namespace BinarySerializer
 {
     public interface IBinarySerializable
     {
-        Task SerializeAsync(BinaryWriter writer);
-        Task DeserializeAsync(BinaryReader reader);
+        Task SerializeAsync(EndianBinaryWriter writer);
+        Task DeserializeAsync(EndianBinaryReader reader);
     }
 }

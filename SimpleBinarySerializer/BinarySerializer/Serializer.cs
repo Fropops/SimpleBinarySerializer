@@ -6,9 +6,11 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using MiscUtil.Conversion;
+using MiscUtil.IO;
 
 namespace BinarySerializer
-{   
+{
     public class Serializer
     {
 
@@ -30,8 +32,8 @@ namespace BinarySerializer
                 {typeof(string), Convert.ToString}
             };
 
-        internal static readonly Dictionary<Type, Action<BinaryWriter, object>> PrimitveWriter =
-           new Dictionary<Type, Action<BinaryWriter, object>>
+        internal static readonly Dictionary<Type, Action<EndianBinaryWriter, object>> PrimitveWriter =
+           new Dictionary<Type, Action<EndianBinaryWriter, object>>
            {
                 {typeof(char), (writer, o) => writer.Write(Convert.ToChar(o))},
                 {typeof(byte), (writer, o) => writer.Write(Convert.ToByte(o))},
@@ -47,10 +49,10 @@ namespace BinarySerializer
                 {typeof(double), (writer, o) => writer.Write(Convert.ToDouble(o))},
            };
 
-        internal static readonly Dictionary<Type, Func<BinaryReader, object>> PrimitveReader =
-           new Dictionary<Type, Func<BinaryReader, object>>
+        internal static readonly Dictionary<Type, Func<EndianBinaryReader, object>> PrimitveReader =
+           new Dictionary<Type, Func<EndianBinaryReader, object>>
            {
-                {typeof(char), reader => reader.ReadChar()},
+                {typeof(char), reader => (char)reader.ReadByte()},
                 {typeof(byte), reader => reader.ReadByte()},
                 {typeof(sbyte), reader => reader.ReadSByte()},
                 {typeof(bool), reader => reader.ReadBoolean()},
@@ -94,7 +96,7 @@ namespace BinarySerializer
                 return;
             }
 
-            using (var writer = new BinaryWriter(stream))
+            using (var writer = new EndianBinaryWriter(new BigEndianBitConverter(), stream))
                 await SerializeAsync(writer, value);
 
             await stream.FlushAsync();
@@ -102,11 +104,11 @@ namespace BinarySerializer
         }
 
 
-        public async Task SerializeAsync<T>(BinaryWriter writer, T value, Type forcedType = null)
+        public async Task SerializeAsync<T>(EndianBinaryWriter writer, T value, Type forcedType = null)
         {
             Type type = forcedType ?? typeof(T);
 
-//            Console.WriteLine($"Serializing Type {type}");
+            //            Console.WriteLine($"Serializing Type {type}");
 
             if (type.IsPrimitive)
             {
@@ -122,7 +124,7 @@ namespace BinarySerializer
             }
 
             writer.Write(value != null);
-            if (value == null)  
+            if (value == null)
                 return;
 
             if (typeof(IBinarySerializable).IsAssignableFrom(type))
@@ -134,12 +136,8 @@ namespace BinarySerializer
 
             if (type == typeof(string))
             {
-                if (value != null)
-                {
-                    var tmp = value as string;
-                    writer.Write(tmp.Length);
-                    writer.Write(Encoding.UTF8.GetBytes(tmp));
-                }
+                var tmp = value as string;
+                writer.Write(tmp);
                 return;
             }
 
@@ -148,7 +146,7 @@ namespace BinarySerializer
                 if (value != null)
                 {
                     var tmp = value as byte[];
-                    writer.Write(tmp.Length);
+                    writer.Write7BitEncodedInt(tmp.Length);
                     writer.Write(tmp);
                 }
                 return;
@@ -157,7 +155,7 @@ namespace BinarySerializer
             if (typeof(IList).IsAssignableFrom(type))
             {
                 var tmp = value as IList;
-                writer.Write(tmp.Count);
+                writer.Write7BitEncodedInt(tmp.Count);
                 foreach (var item in tmp)
                     await SerializeAsync(writer, item, item.GetType());
 
@@ -191,7 +189,7 @@ namespace BinarySerializer
             // Iterate over the filtered members
             foreach (MemberInfo member in orderedMembers)
             {
-//                Console.WriteLine($"Serializing Member {member.Name}");
+                //                Console.WriteLine($"Serializing Member {member.Name}");
                 PropertyInfo propertyInfo = (PropertyInfo)member;
                 object propertyValue = propertyInfo.GetValue(value);
 
@@ -199,11 +197,11 @@ namespace BinarySerializer
             }
         }
 
-        public async Task<object> DeserializeAsync(BinaryReader reader, Type forcedType)
+        public async Task<object> DeserializeAsync(EndianBinaryReader reader, Type forcedType)
         {
             Type type = forcedType;
 
-//            Console.WriteLine($"Deserializing Type {type}");
+            //            Console.WriteLine($"Deserializing Type {type}");
 
             if (type.IsPrimitive)
                 return PrimitveReader[type](reader);
@@ -215,7 +213,7 @@ namespace BinarySerializer
             }
 
             var isNull = !reader.ReadBoolean();
-            if(isNull)
+            if (isNull)
                 return null;
 
             if (typeof(IBinarySerializable).IsAssignableFrom(type))
@@ -228,18 +226,13 @@ namespace BinarySerializer
 
             if (type == typeof(string))
             {
-                var length = reader.ReadInt32();
-                byte[] buff = new byte[length];
-                reader.Read(buff, 0, length);
-                return Encoding.UTF8.GetString(buff);
+                return reader.ReadString();
             }
 
             if (type == typeof(byte[]))
             {
-                var length = reader.ReadInt32();
-                byte[] buff = new byte[length];
-                reader.Read(buff, 0, length);
-                return buff;
+                var length = reader.Read7BitEncodedInt();
+                return reader.ReadBytes(length);
             }
 
             if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
@@ -257,7 +250,7 @@ namespace BinarySerializer
                 Type elementType = type.GetGenericArguments()[0];
 
                 var list = Activator.CreateInstance(type) as IList;
-                var length = reader.ReadInt32();
+                var length = reader.Read7BitEncodedInt();
                 for (int i = 0; i < length; ++i)
                 {
                     var item = await DeserializeAsync(reader, elementType);
@@ -284,7 +277,7 @@ namespace BinarySerializer
             // Iterate over the filtered members
             foreach (MemberInfo member in orderedMembers)
             {
-//                Console.WriteLine($"Deserializing Member {member.Name}");
+                //                Console.WriteLine($"Deserializing Member {member.Name}");
                 PropertyInfo propertyInfo = (PropertyInfo)member;
                 var val = await this.DeserializeAsync(reader, propertyInfo.PropertyType);
                 propertyInfo.SetValue(ret, val, null);
@@ -296,7 +289,7 @@ namespace BinarySerializer
 
         public async Task<T> DeserializeAsync<T>(Stream stream)
         {
-            var res = await DeserializeAsync(new BinaryReader(stream), typeof(T));
+            var res = await DeserializeAsync(new EndianBinaryReader(new BigEndianBitConverter(), stream), typeof(T));
             return (T)res;
         }
 
