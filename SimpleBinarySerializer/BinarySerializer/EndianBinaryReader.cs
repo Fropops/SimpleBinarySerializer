@@ -513,7 +513,7 @@ namespace MiscUtil.IO
 		/// <returns>The string read from the stream.</returns>
 		public string ReadString()
 		{
-			int bytesToRead = Read7BitEncodedInt();
+			int bytesToRead = ReadInt32();
 
 			byte[] data = new byte[bytesToRead];
 			ReadInternal(data, bytesToRead);

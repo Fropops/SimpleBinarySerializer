@@ -146,7 +146,7 @@ namespace BinarySerializer
                 if (value != null)
                 {
                     var tmp = value as byte[];
-                    writer.Write7BitEncodedInt(tmp.Length);
+                    writer.Write(tmp.Length);
                     writer.Write(tmp);
                 }
                 return;
@@ -155,7 +155,7 @@ namespace BinarySerializer
             if (typeof(IList).IsAssignableFrom(type))
             {
                 var tmp = value as IList;
-                writer.Write7BitEncodedInt(tmp.Count);
+                writer.Write(tmp.Count);
                 foreach (var item in tmp)
                     await SerializeAsync(writer, item, item.GetType());
 
@@ -231,7 +231,7 @@ namespace BinarySerializer
 
             if (type == typeof(byte[]))
             {
-                var length = reader.Read7BitEncodedInt();
+                var length = reader.ReadInt32();
                 return reader.ReadBytes(length);
             }
 
@@ -250,7 +250,7 @@ namespace BinarySerializer
                 Type elementType = type.GetGenericArguments()[0];
 
                 var list = Activator.CreateInstance(type) as IList;
-                var length = reader.Read7BitEncodedInt();
+                var length = reader.ReadInt32();
                 for (int i = 0; i < length; ++i)
                 {
                     var item = await DeserializeAsync(reader, elementType);

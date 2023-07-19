@@ -69,3 +69,49 @@ namespace TestSerializer
         public int SleepJitter { get; set; }
     }
 }
+
+namespace Shared
+{
+    public enum NetFrameType : byte
+    {
+        CheckIn = 0x00,
+        Task = 0x01,
+        TaskResult = 0x02,
+    }
+    public class NetFrame
+    {
+        public NetFrame()
+        {
+
+        }
+
+        public NetFrame(string source, string destination, NetFrameType typ, byte[] data)
+        {
+            this.Source = source;
+            this.Destination = destination;
+            this.FrameType = typ;
+            this.Data = data;
+        }
+
+        public NetFrame(string source, string destination, NetFrameType typ) : this(source, destination, typ, null)
+        {
+        }
+
+        public NetFrame(string source, NetFrameType typ) : this(source, null, typ, null)
+        {
+        }
+
+        public NetFrame(string source, NetFrameType typ, byte[] data) : this(source, String.Empty, typ, data)
+        {
+        }
+
+        [FieldOrder(0)]
+        public NetFrameType FrameType { get; set; }
+        [FieldOrder(1)]
+        public string Source { get; set; } = String.Empty;
+        [FieldOrder(2)]
+        public string Destination { get; set; } = String.Empty;
+        [FieldOrder(2)]
+        public byte[] Data { get; set; }
+    }
+}

@@ -319,7 +319,7 @@ namespace MiscUtil.IO
 			}
 			CheckDisposed();
 			byte[] data = Encoding.GetBytes(value);
-			Write7BitEncodedInt(data.Length);
+			Write(data.Length);
 			WriteInternal(data, data.Length);
 		}
 
